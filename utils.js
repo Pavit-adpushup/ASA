@@ -1,5 +1,5 @@
 const SitemapXMLParser = require("sitemap-xml-parser");
-const pupeteer = require("puppeteer");
+// const pupeteer = require("puppeteer");
 const md5 = require("md5");
 const fs = require("fs");
 const fsPromises = require("fs").promises;
@@ -7,7 +7,11 @@ const axios = require("axios");
 const moment = require("moment");
 const { requestPool } = require("./lib/pool.js");
 const { XMLParser } = require("fast-xml-parser");
+const Parser = require("rss-parser");
+const parser = new Parser();
+const sql = require('mssql');
 
+const { sqlDbConfig } = require("./config");
 const getUrlsFromSource = async (
   urlsFile,
   isSiteMapCrawlingActive,
@@ -152,69 +156,65 @@ const isUrlInMatchList = (url, matchList) => {
 };
 
 const getPageDataViaPuppeteer = async (url, waitTimeout = 0) => {
-  const browser = await pupeteer.launch({
-    acceptInsecureCerts: true,
-    ignoreHTTPSErrors: true,
-    args: ["--no-sandbox"],
-  });
-  let page = null;
-  try {
-    if (!url) {
-      return {
-        url: "",
-        data: "",
-        redirectUrl: "",
-      };
-    }
-
-    console.log("Req:", url);
-
-    page = await browser.newPage();
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.54 Safari/537.36"
-    );
-    const response = await page.goto(url, {
-      waitUntil: "domcontentloaded",
-    });
-
-    let statusCode = response.status();
-    await page.waitForTimeout(waitTimeout);
-    let pageHTML = await page.content();
-    console.log({ url, statusCode });
-    await page.close();
-
-    if (statusCode == 200) {
-      return {
-        url,
-        data: pageHTML,
-        redirectUrl: "",
-        statusCode,
-      };
-    } else {
-      return {
-        url,
-        data: "",
-        redirectUrl: "",
-        statusCode,
-      };
-    }
-  } catch (error) {
-    if (page) {
-      await page.close();
-    }
-    if (error.response) {
-      // Request made and server responded
-      console.log("Error data", error.response.data);
-      console.log("Error status", error.response.status);
-      console.log("Error header", error.response.headers);
-    } else if (error.request) {
-      // The request was made but no response was received
-      console.log("Error req - ", url);
-    } else {
-      // Something happened in setting up the request that triggered an Error
-      console.log("Error:", error.message);
-    }
-  }
+  // const browser = await pupeteer.launch({
+  //   acceptInsecureCerts: true,
+  //   ignoreHTTPSErrors: true,
+  //   args: ["--no-sandbox"],
+  // });
+  // let page = null;
+  // try {
+  //   if (!url) {
+  //     return {
+  //       url: "",
+  //       data: "",
+  //       redirectUrl: "",
+  //     };
+  //   }
+  //   console.log("Req:", url);
+  //   page = await browser.newPage();
+  //   await page.setUserAgent(
+  //     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/95.0.4638.54 Safari/537.36"
+  //   );
+  //   const response = await page.goto(url, {
+  //     waitUntil: "domcontentloaded",
+  //   });
+  //   let statusCode = response.status();
+  //   await page.waitForTimeout(waitTimeout);
+  //   let pageHTML = await page.content();
+  //   console.log({ url, statusCode });
+  //   await page.close();
+  //   if (statusCode == 200) {
+  //     return {
+  //       url,
+  //       data: pageHTML,
+  //       redirectUrl: "",
+  //       statusCode,
+  //     };
+  //   } else {
+  //     return {
+  //       url,
+  //       data: "",
+  //       redirectUrl: "",
+  //       statusCode,
+  //     };
+  //   }
+  // } catch (error) {
+  //   if (page) {
+  //     await page.close();
+  //   }
+  //   if (error.response) {
+  //     // Request made and server responded
+  //     console.log("Error data", error.response.data);
+  //     console.log("Error status", error.response.status);
+  //     console.log("Error header", error.response.headers);
+  //   } else if (error.request) {
+  //     // The request was made but no response was received
+  //     console.log("Error req - ", url);
+  //   } else {
+  //     // Something happened in setting up the request that triggered an Error
+  //     console.log("Error:", error.message);
+  //   }
+  // }
 };
 
 const crawlSiteMapXML = async (siteDomain, siteMapPaths, crawlingOptions) => {
@@ -405,6 +405,68 @@ const getInternalLinksFileName = (siteName, alogrithmForKeywordExtraction) => {
 const isObjectEmpty = (object) =>
   Object.entries(object).length === 0 && object.constructor === Object;
 
+async function exists(path) {
+  try {
+    await fsPromises.access(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const getDataFromRssFeed = async (url) => {
+  let feed = await parser.parseURL(url);
+  const lastBuildDate = feed.lastBuildDate;
+  const urls = feed.items.map((item) => item.link);
+  fs.writeFile("rssData.json", JSON.stringify(feed, null, 1), (err) => {
+    if (err) console.log(err);
+  });
+  return urls;
+};
+
+const filterNewUrls = async (urls) => {
+  const newUrls = [];
+  const savedDataPath = "./LocalTesting/SavedScrapperData/gadgets360/";
+  for(let i=0; i<urls.length; i++) {
+    let url = urls[i];
+    const filePath = `${savedDataPath}${md5(url)}.json`;
+    const result = await exists(filePath);
+    if(!result) newUrls.push(url);
+  }
+  return newUrls;
+};
+
+const getAudienceSegmentData = async () => {
+  try {
+    let pool = await sql.connect(sqlDbConfig);
+    let result1 = await pool
+      .request()
+      .query("select id, name from SiteAudienceSegmentData");
+    pool.close();
+    return result1.recordset;
+  } catch (err) {
+    console.log("error in sql service: ", err);
+  }
+};
+
+const getSegmentMappings = async () => {
+  let data = await getAudienceSegmentData();
+  const segmentEntityMapping = {};
+  const segmentCatergoryMapping = {};
+  data.forEach((obj) => {
+    if (obj.name.includes("FPA_Gadgets_Entity_")) {
+      const entityName = obj.name.replace("FPA_Gadgets_Entity_", "");
+      segmentEntityMapping[entityName] = obj.id;
+    } else {
+      const categoryName = obj.name.replace("FPA_Gadgets_Category_", "");
+      segmentCatergoryMapping[categoryName] = obj.id;
+    }
+  });
+  return { segmentEntityMapping, segmentCatergoryMapping };
+};
+
+const uploadDataToCouchbase = () => {};
+
 module.exports = {
   saveSiteData,
   crawlSiteMapXmlv2,
@@ -420,4 +482,7 @@ module.exports = {
   checkForSavedUrlData,
   isUrlInMatchList,
   getPageDataThroughProxy,
+  getDataFromRssFeed,
+  filterNewUrls,
+  getSegmentMappings
 };
