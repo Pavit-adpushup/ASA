@@ -2,7 +2,6 @@ const args = require("minimist")(process.argv.slice(2));
 const { requestPool } = require("./lib/pool.js");
 const fs = require("fs");
 const md5 = require("md5");
-const sql = require("mssql");
 
 // Imports the Google Cloud client library
 const language = require("@google-cloud/language");
@@ -11,7 +10,15 @@ const client = new language.LanguageServiceClient();
 
 const skippedUrls = [];
 const urlNlpAnalysis = {};
-const { siteConfig, sqlDbConfig } = require("./config");
+const { siteConfig } = require("./config");
+
+const {
+  generateCsvFromNlpData,
+  urlToEntitiesMapping,
+  createMetricsFromData,
+  logSkippedUrls,
+  filterNlpData,
+} = require("./helpers/dataGeneration");
 
 const {
   getUrlsFromSource,
@@ -19,9 +26,10 @@ const {
   preBatchForRequestPool,
   getPageDataWithAxios,
   saveSiteData,
-  exportToJsonFile,
   filterNewUrls,
+  checkForSavedUrlData,
   getSegmentMappings,
+  createSegmentDataAndUpload,
 } = require("./utils");
 
 const scrapeUrlsInBatches = async (urls) => {
@@ -62,32 +70,8 @@ const fetchParaDataFromHTML = (html) => {
   return textContent.replace(regExp, "");
 };
 
-const checkForSavedUrlData = (url, siteConfig) => {
-  const md5Url = md5(url);
-  const msg = "Saved data found !!!!";
-  console.log("Checking for saved data");
-  const md5fileName = `./LocalTesting/SavedScrapperData/${siteConfig.siteName}/${md5Url}.json`;
-  let result = false;
-  let savedData = null;
-  if (fs.existsSync(md5fileName)) {
-    console.log(`${msg}`);
-    savedData = require(md5fileName);
-    result = true;
-  }
-  return {
-    result,
-    savedData,
-  };
-};
-
-const filterEntities = (entitiesArr) => {
-  return entitiesArr.filter((item) => {
-    if (item.salience > 0) {
-      return true;
-    }
-    return false;
-  });
-};
+const filterEntities = (entitiesArr) =>
+  entitiesArr.filter((item) => item.salience > 0);
 
 const classifyText = async (document) => {
   try {
@@ -154,111 +138,6 @@ async function EntityAnalysis(url) {
   }
 }
 
-const generateCsvFromNlpData = (data) => {
-  const csvStream = csv.format({
-    headers: ["URL", "Categories", "Entites"],
-  });
-  const writeStream = fs.createWriteStream(
-    `./GeneratedData/ndtvNLpAnalysis.csv`
-  );
-  csvStream.pipe(writeStream).on("end", () => process.exit());
-  for (let url in data) {
-    const nlpData = data[url];
-    let categoryStr = "No classification";
-    nlpData.urlCategories.forEach((item, index) => {
-      if (index === 0) categoryStr = `${item.name} `;
-    });
-    let entityStr = "";
-    nlpData.NlpEntityAnalysis.forEach((item) => {
-      entityStr += `${item.name} |`;
-    });
-    csvStream.write([url, categoryStr, entityStr]);
-  }
-};
-
-const urlToEntitiesMapping = (data) => {
-  const urlToEntitesObj = {};
-  for (let url in data) {
-    const nlpData = data[url];
-    const entityArr = nlpData.NlpEntityAnalysis;
-    urlToEntitesObj[url] = [];
-    entityArr.forEach((entityObj) => {
-      if (!urlToEntitesObj[url].includes(entityObj.name))
-        urlToEntitesObj[url].push(entityObj.name);
-    });
-  }
-  exportToJsonFile(
-    urlToEntitesObj,
-    "./GeneratedData/urlToEntitiesMapping.json"
-  );
-};
-
-const generateCsvFromNlpMetrics = (data) => {
-  const csvStream = csv.format({
-    headers: [
-      "Entity",
-      "Entity_count",
-      "Type:count",
-      "Total_types_for_entitys",
-    ],
-  });
-  const writeStream = fs.createWriteStream(
-    `./GeneratedData/ndtvNLpAnalysisMetrics.csv`
-  );
-  csvStream.pipe(writeStream).on("end", () => process.exit());
-
-  for (let entity in data) {
-    const entityObj = data[entity];
-    const totalTypes = Object.keys(entityObj.types).length;
-    let typesAndCounts = "";
-    for (let type in entityObj.types) {
-      typesAndCounts += `${type}:${entityObj.types[type]}; `;
-    }
-    csvStream.write([entity, entityObj.count, typesAndCounts, totalTypes]);
-  }
-};
-
-const createMetricsFromData = (data) => {
-  const metrics = {};
-  for (let url in data) {
-    const urlObj = data[url];
-    const entityArr = urlObj.NlpEntityAnalysis;
-    entityArr.forEach((item) => {
-      const name = item.name;
-      const regex = new RegExp("^[A-Z]|^[i][A-Z]");
-      if (name.match(regex) === null) return;
-      const type = item.type;
-      if (metrics.hasOwnProperty(name)) {
-        metrics[name].count++;
-        if (metrics[name].types.hasOwnProperty(type))
-          metrics[name].types[type]++;
-        else {
-          metrics[name].types[type] = 1;
-        }
-      } else {
-        metrics[name] = {
-          count: 1,
-          types: {},
-        };
-        metrics[name].types[type] = 1;
-      }
-    });
-  }
-  generateCsvFromNlpMetrics(metrics);
-  exportToJsonFile(metrics, "./GeneratedData/ndtvNlpAnalysisMetrics.json");
-};
-
-const logSkippedUrls = () => {
-  const skippedUrlsStr = JSON.stringify(skippedUrls, null, 1);
-  fs.writeFile(
-    "./GeneratedData/NDTVskippedURLS.json",
-    skippedUrlsStr,
-    (err) => {
-      console.log("The error is", err);
-    }
-  );
-};
-
 const start = async () => {
   const urlsFile = args.urlsFile;
   if (urlsFile !== "") throw new Error("No urls file provided !!!");
@@ -269,74 +148,36 @@ const start = async () => {
   urlToEntitiesMapping(urlNlpAnalysis);
   generateCsvFromNlpData(urlNlpAnalysis);
   createMetricsFromData(urlNlpAnalysis);
-  logSkippedUrls();
+  logSkippedUrls(skippedUrls);
   console.log("the scrapping is complete !!!!");
   console.timeEnd("The scrapper time");
 };
 
-const filterNlpData = (data) => {
-  const filteredNlpData = [];
-  for (let url in data) {
-    const nlpData = data[url];
-    //extracting category from url
-    const regex = new RegExp(".com//?(\\w+)");
-    const compareRegex = new RegExp(".com//?(\\w+(-\\w+)?)");
-    const categoryRegex = url.includes(".com/compare") ? compareRegex : regex;
-    const categoryFromUrl = url.match(categoryRegex)[1];
-
-    //filter out entities
-    const entitiesStr = nlpData.NlpEntityAnalysis.map((obj) => obj.name).join(
-      " | "
-    );
-    const filteredEntities = [];
-    siteConfig.entitiesToKeep.forEach((entity) => {
-      const wordBoundaryRegex = new RegExp(`\\b${entity}\\b`, "i");
-      const includeRegex = new RegExp(`${entity}`, "i");
-      const entityRegex = entity.length <= 3 ? wordBoundaryRegex : includeRegex;
-      entitiesStr.match(entityRegex) && filteredEntities.push(entity);
-    });
-
-    filteredNlpData.push({
-      url,
-      category: categoryFromUrl,
-      filteredEntities,
-    });
-  }
-  return filteredNlpData;
-};
-
 const rssFeedNlpAnalysis = async (url) => {
-  // const urls = await getDataFromRssFeed(url);
-  // const newUrls = await filterNewUrls(urls);
-  const newUrls = [
-    "https://gadgets360.com/wearables/news/xiaomi-mi-band-4-price-cny-169-launch-specifications-features-2051393",
-    "https://gadgets360.com/wearables/news/watchos-8-4-1-release-update-download-apple-watch-series-4-5-6-se-7-bug-fix-2744607",
-    "https://gadgets360.com/wearables/news/samsung-galaxy-watch-4-classic-price-usd-249-99-299-99-launch-sale-date-august-27-specifications-2508256",
-  ];
-  const { segmentEntityMap, segmentCategoryMap } = await getSegmentMappings();
-  await scrapeUrlsInBatches(newUrls);
-  const nlpData = filterNlpData(urlNlpAnalysis);
-  createSegmentDataAndUpload(nlpData, segmentEntityMap, segmentCategoryMap);
-  console.log(nlpData);
-};
-
-const createSegmentDataAndUpload = (data, entityMap, categorymap) => {
-  data.forEach((obj) => {
-    const uploadJson = {
-      dateCreated: +new Date(),
-    };
-    uploadJson.segmentMap = obj.filteredEntities.map((name) => entityMap[name]);
-    uploadJson.segmentMap.push(categorymap[obj.category]);
-    console.log(uploadJson);
-  });
+  try {
+    // const urls = await getDataFromRssFeed(url);
+    // const newUrls = await filterNewUrls(urls);
+    const newUrls = [
+      "https://gadgets360.com/wearables/news/huawei-watch-gt-2e-price-eur-199-launch-features-specifications-battery-life-2201455",
+      "https://gadgets360.com/wearables/news/htc-vive-pro-2-focus-3-price-usd-799-1300-launch-specifications-features-5k-resolution-120hz-refresh-rate-2440028",
+      "https://gadgets360.com/wearables/news/garmin-venu-2-plus-smartwatch-price-in-india-rs-46990-launch-specifications-features-sale-2716953",
+      "https://gadgets360.com/wearables/news/fitbit-year-in-review-feature-highlights-step-counting-sleep-tracking-total-active-zone-minutes-google-2740378",
+      "https://gadgets360.com/wearables/news/fitbit-versa-2-google-assistant-support-work-in-progress-report-2245368",
+    ];
+    const {
+      segmentEntityMapping: entityMap,
+      segmentCatergoryMapping: categoryMap,
+    } = await getSegmentMappings();
+    await scrapeUrlsInBatches(newUrls);
+    const nlpData = filterNlpData(urlNlpAnalysis, siteConfig.entitiesToKeep);
+    createSegmentDataAndUpload(nlpData, entityMap, categoryMap);
+  } catch (err) {
+    console.log("Error: ", err);
+  }
 };
 
 (async () => {
-  try {
-    await rssFeedNlpAnalysis(siteConfig.rssFeedUrl);
-  } catch (err) {
-    console.log("Error is: ", err);
-  }
+  rssFeedNlpAnalysis(siteConfig.rssFeedUrl);
 })();
 
 module.exports = {

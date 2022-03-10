@@ -1,5 +1,4 @@
-const SitemapXMLParser = require("sitemap-xml-parser");
-// const pupeteer = require("puppeteer");
+const pupeteer = require("puppeteer");
 const md5 = require("md5");
 const fs = require("fs");
 const fsPromises = require("fs").promises;
@@ -9,11 +8,10 @@ const { requestPool } = require("./lib/pool.js");
 const { XMLParser } = require("fast-xml-parser");
 const Parser = require("rss-parser");
 const parser = new Parser();
-const sql = require('mssql');
-
-const { sqlDbConfig, couchbaseConfig } = require("./config");
-console.log('the config is', sqlDbConfig);couchbaseConfig
-console.log('the config is', couchbaseConfig);
+const sql = require("mssql");
+const crypto = require("crypto");
+const { sqlDbConfig } = require("./config");
+const couchbase = require("./helpers/couchbase");
 
 const getUrlsFromSource = async (
   urlsFile,
@@ -47,11 +45,10 @@ const getUrlsFromSource = async (
   return { urls, urlDataSource };
 };
 
-const checkForSavedUrlData = (url, siteConfig, forceFetch) => {
+const checkForSavedUrlData = (url, siteConfig) => {
   const md5Url = md5(url);
-  const msg = forceFetch
-    ? " ◎ Only using saved HTML data"
-    : ` ◎ Using saved HTML and Keywords data for: ${url}`;
+  const msg = "Saved data found !!!!";
+  console.log("Checking for saved data");
   const md5fileName = `./LocalTesting/SavedScrapperData/${siteConfig.siteName}/${md5Url}.json`;
   let result = false;
   let savedData = null;
@@ -65,7 +62,6 @@ const checkForSavedUrlData = (url, siteConfig, forceFetch) => {
     savedData,
   };
 };
-
 const getPageData = async (url, usePuppeteer, index) => {
   const idx = index === "" ? "" : `${++index})`;
   if (usePuppeteer) {
@@ -74,15 +70,9 @@ const getPageData = async (url, usePuppeteer, index) => {
     console.log(`◎ ${idx} Scrapped url is: ${url}`);
     return data;
   } else {
-    if (Math.floor(Math.random() * 100) < 50) {
-      const data = await getPageDataWithAxios(url);
-      console.log(`◎ ${idx} Scrapped url is: ${url}`);
-      return data;
-    } else {
-      const data = await getPageDataThroughProxy(url);
-      console.log(`◎ ${idx} Scrapped url is: ${url}`);
-      return data;
-    }
+    const data = await getPageDataWithAxios(url);
+    console.log(`◎ ${idx} Scrapped url is: ${url}`);
+    return data;
   }
 };
 
@@ -109,12 +99,6 @@ const getPageDataWithAxios = async (url) => {
   return html;
 };
 
-const getPageDataThroughProxy = async (url) => {
-  return await axios
-    .post("http://52.179.186.74:3000/proxy", { url })
-    .then((res) => res.data);
-};
-
 const preBatchForRequestPool = (urls, batchSize) => {
   let batches = [];
   let currentBatch = [];
@@ -135,27 +119,6 @@ const preBatchForRequestPool = (urls, batchSize) => {
   }
   console.log("Total batches created for request pool", batches.length);
   return batches;
-};
-
-const isUrlInMatchList = (url, matchList) => {
-  let matchFound = false;
-  let contentSelector = null;
-  let regexMatched = null;
-  for (const regex in matchList) {
-    if (matchFound === true) break;
-    const regexp = new RegExp(regex, "g");
-    const result = url.match(regexp);
-    if (result !== null) {
-      matchFound = true;
-      regexMatched = regex;
-      contentSelector = matchList[regex];
-    }
-  }
-  return {
-    isUrlValid: matchFound,
-    contentSelector,
-    regexMatched,
-  };
 };
 
 const getPageDataViaPuppeteer = async (url, waitTimeout = 0) => {
@@ -218,30 +181,6 @@ const getPageDataViaPuppeteer = async (url, waitTimeout = 0) => {
   //     console.log("Error:", error.message);
   //   }
   // }
-};
-
-const crawlSiteMapXML = async (siteDomain, siteMapPaths, crawlingOptions) => {
-  console.log("crawling siteMap....");
-  const allValidUrls = [];
-
-  var siteMapPromiseArr = siteMapPaths.map(async (sitemapPath) => {
-    return new Promise(async (resolve) => {
-      const sitemapXMLParser = new SitemapXMLParser(
-        siteDomain + sitemapPath,
-        crawlingOptions
-      );
-      var results = await sitemapXMLParser.fetch();
-      results = results.map((result) => result.loc[0]);
-      resolve(results);
-    });
-  });
-  var resultArray = await Promise.all(siteMapPromiseArr).catch((err) =>
-    console.log(err)
-  );
-  resultArray.forEach((item) => {
-    allValidUrls.push(...item);
-  });
-  return allValidUrls;
 };
 
 const promiseWithCatch = (data) => {
@@ -333,63 +272,10 @@ const crawlSiteMapXmlv2 = async (siteDomain, siteMapPaths) => {
   return { uniqueUrls: uniqueUrlArr, duplicatesFound };
 };
 
-const crawlSiteMapPage = async (
-  xmlUrl,
-  retryCount = 0,
-  siteMapCrawlingBatchSize,
-  siteMapCrawlerDelay
-) => {
-  try {
-    let resultData = {};
-    const remainingData = [];
-    const crawledData = await crawlPage(xmlUrl);
-    const { data = "" } = crawledData || {};
-    var jsonObject = parser.xml2json(data);
-    let { sitemapindex: { sitemap = [] } = {}, urlset: { url = [] } = {} } =
-      jsonObject;
-    if (sitemap.length === 0) {
-      sitemap = url;
-    }
-    for (let i = 0; i < sitemap.length; i++) {
-      const { loc = "", lastmod = "" } = sitemap[i];
-      const urlSuffix = loc.slice(loc.length - 4);
-      if (!urlSuffix) {
-        continue;
-      }
-      if (urlSuffix === ".xml") {
-        remainingData.push(loc);
-      } else {
-        resultData[loc] = lastmod;
-      }
-    }
-
-    const { res: remainingXmlData } = await requestPool({
-      queue: remainingData,
-      batchSize: siteMapCrawlingBatchSize,
-      delay: siteMapCrawlerDelay,
-      fn: crawlSiteMapPage,
-    });
-    remainingXmlData.forEach((data) => {
-      resultData = { ...resultData, ...data };
-    });
-    return resultData;
-  } catch (error) {
-    console.error("Crawl Site Map Error", error);
-    if (retryCount <= 5) {
-      await crawlSiteMapPage(xmlUrl, retryCount + 1);
-      console.log("retrying crawlSiteMapPage");
-    } else {
-      console.log("error in crawling page", error);
-    }
-  }
-};
-
 const saveSiteData = (url, siteName, dataToSave) => {
   const md5FileNameHash = md5(url);
   const dirNameToSaveData = `./LocalTesting/SavedScrapperData/${siteName}/`;
   const fileName = `${dirNameToSaveData}${md5FileNameHash}.json`;
-  const mappingFilePath = `${dirNameToSaveData}/urlToHashedNameMapping.txt`;
-  const dataToAppend = `${url} => ${md5FileNameHash}\n`;
   exportToJsonFile(dataToSave, fileName);
 };
 
@@ -398,11 +284,6 @@ const exportToJsonFile = (jsonObj, filePath) => {
   fs.writeFile(`${filePath}`, jsonString, (err) => {
     if (err) console.log(`the err in export function is ${err}`);
   });
-};
-
-const getInternalLinksFileName = (siteName, alogrithmForKeywordExtraction) => {
-  const formatedDate = moment().format().replace(/T/, " ").replace(/\+.+/, "");
-  return `${siteName}-${formatedDate}-${alogrithmForKeywordExtraction}`;
 };
 
 const isObjectEmpty = (object) =>
@@ -419,7 +300,6 @@ async function exists(path) {
 
 const getDataFromRssFeed = async (url) => {
   let feed = await parser.parseURL(url);
-  const lastBuildDate = feed.lastBuildDate;
   const urls = feed.items.map((item) => item.link);
   fs.writeFile("rssData.json", JSON.stringify(feed, null, 1), (err) => {
     if (err) console.log(err);
@@ -430,11 +310,11 @@ const getDataFromRssFeed = async (url) => {
 const filterNewUrls = async (urls) => {
   const newUrls = [];
   const savedDataPath = "./LocalTesting/SavedScrapperData/gadgets360/";
-  for(let i=0; i<urls.length; i++) {
+  for (let i = 0; i < urls.length; i++) {
     let url = urls[i];
     const filePath = `${savedDataPath}${md5(url)}.json`;
     const result = await exists(filePath);
-    if(!result) newUrls.push(url);
+    if (!result) newUrls.push(url);
   }
   return newUrls;
 };
@@ -446,6 +326,7 @@ const getAudienceSegmentData = async () => {
       .request()
       .query("select id, name from SiteAudienceSegmentData");
     pool.close();
+    console.log("Fetched segment data!!");
     return result1.recordset;
   } catch (err) {
     console.log("error in sql service: ", err);
@@ -468,24 +349,36 @@ const getSegmentMappings = async () => {
   return { segmentEntityMapping, segmentCatergoryMapping };
 };
 
-const uploadDataToCouchbase = () => {};
+const generateSHA256Hash = (str) =>
+  crypto.createHash("sha256").update(str, "utf-8").digest("hex");
+
+const createSegmentDataAndUpload = async (data, entityMap, categorymap) => {
+  const bucketConn = couchbase.getConnection();
+  data.forEach((obj) => {
+    const urlPath = obj.url.replace("https://gadgets360.com", "");
+    const SHA1UrlPath = generateSHA256Hash(urlPath);
+    const docId = `urlmap::${SHA1UrlPath}`;
+    const uploadJson = {
+      dateCreated: +new Date(),
+    };
+    uploadJson.segmentMap = obj.filteredEntities.map((name) => entityMap[name]);
+    uploadJson.segmentMap.push(categorymap[obj.category]);
+    bucketConn.createDoc(docId, uploadJson, {});
+  });
+};
 
 module.exports = {
   saveSiteData,
   crawlSiteMapXmlv2,
-  crawlSiteMapXML,
-  crawlSiteMapPage,
   isObjectEmpty,
   exportToJsonFile,
   getPageDataWithAxios,
-  getInternalLinksFileName,
   getPageData,
   preBatchForRequestPool,
   getUrlsFromSource,
   checkForSavedUrlData,
-  isUrlInMatchList,
-  getPageDataThroughProxy,
   getDataFromRssFeed,
   filterNewUrls,
-  getSegmentMappings
+  getSegmentMappings,
+  createSegmentDataAndUpload,
 };
