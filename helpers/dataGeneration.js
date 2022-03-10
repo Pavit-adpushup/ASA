@@ -4,8 +4,10 @@ const csv = require("fast-csv");
 
 const filterNlpData = (data, entitiesToKeep) => {
   const filteredNlpData = [];
+
   for (let url in data) {
     const nlpData = data[url];
+	
     //extracting category from url
     const regex = new RegExp(".com//?(\\w+)");
     const compareRegex = new RegExp(".com//?(\\w+(-\\w+)?)");
