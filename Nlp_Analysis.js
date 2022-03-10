@@ -313,8 +313,7 @@ const rssFeedNlpAnalysis = async (url) => {
     "https://gadgets360.com/wearables/news/watchos-8-4-1-release-update-download-apple-watch-series-4-5-6-se-7-bug-fix-2744607",
     "https://gadgets360.com/wearables/news/samsung-galaxy-watch-4-classic-price-usd-249-99-299-99-launch-sale-date-august-27-specifications-2508256",
   ];
-  const { segmentEntityMap, segmentCategoryMap } =
-    await getSegmentMappings();
+  const { segmentEntityMap, segmentCategoryMap } = await getSegmentMappings();
   await scrapeUrlsInBatches(newUrls);
   const nlpData = filterNlpData(urlNlpAnalysis);
   createSegmentDataAndUpload(nlpData, segmentEntityMap, segmentCategoryMap);

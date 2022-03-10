@@ -11,7 +11,10 @@ const Parser = require("rss-parser");
 const parser = new Parser();
 const sql = require('mssql');
 
-const { sqlDbConfig } = require("./config");
+const { sqlDbConfig, couchbaseConfig } = require("./config");
+console.log('the config is', sqlDbConfig);couchbaseConfig
+console.log('the config is', couchbaseConfig);
+
 const getUrlsFromSource = async (
   urlsFile,
   isSiteMapCrawlingActive,
