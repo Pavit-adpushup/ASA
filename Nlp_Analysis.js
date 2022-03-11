@@ -1,7 +1,6 @@
 const args = require("minimist")(process.argv.slice(2));
 const { requestPool } = require("./lib/pool.js");
-const fs = require("fs");
-const md5 = require("md5");
+const cheerio = require("cheerio");
 
 // Imports the Google Cloud client library
 const language = require("@google-cloud/language");
@@ -155,19 +154,16 @@ const start = async () => {
 
 const rssFeedNlpAnalysis = async (url) => {
   try {
-    // const urls = await getDataFromRssFeed(url);
-    // const newUrls = await filterNewUrls(urls);
-    const newUrls = [
-      "https://gadgets360.com/wearables/news/huawei-watch-gt-2e-price-eur-199-launch-features-specifications-battery-life-2201455",
-      "https://gadgets360.com/wearables/news/htc-vive-pro-2-focus-3-price-usd-799-1300-launch-specifications-features-5k-resolution-120hz-refresh-rate-2440028",
-      "https://gadgets360.com/wearables/news/garmin-venu-2-plus-smartwatch-price-in-india-rs-46990-launch-specifications-features-sale-2716953",
-      "https://gadgets360.com/wearables/news/fitbit-year-in-review-feature-highlights-step-counting-sleep-tracking-total-active-zone-minutes-google-2740378",
-      "https://gadgets360.com/wearables/news/fitbit-versa-2-google-assistant-support-work-in-progress-report-2245368",
-    ];
+    const urls = await getDataFromRssFeed(url);
+    if (!urls || !urls.length) {
+      console.log("Feed not updated!!");
+      return;
+    }
     const {
       segmentEntityMapping: entityMap,
       segmentCatergoryMapping: categoryMap,
     } = await getSegmentMappings();
+
     await scrapeUrlsInBatches(newUrls);
     const nlpData = filterNlpData(urlNlpAnalysis, siteConfig.entitiesToKeep);
     createSegmentDataAndUpload(nlpData, entityMap, categoryMap);

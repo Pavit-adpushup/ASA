@@ -1,10 +1,8 @@
-const pupeteer = require("puppeteer");
 const md5 = require("md5");
 const fs = require("fs");
 const fsPromises = require("fs").promises;
 const axios = require("axios");
 const moment = require("moment");
-const { requestPool } = require("./lib/pool.js");
 const { XMLParser } = require("fast-xml-parser");
 const Parser = require("rss-parser");
 const parser = new Parser();
@@ -12,6 +10,7 @@ const sql = require("mssql");
 const crypto = require("crypto");
 const { sqlDbConfig } = require("./config");
 const couchbase = require("./helpers/couchbase");
+let { lastUpdated } = require("./SavedData/savedRssData.json");
 
 const getUrlsFromSource = async (
   urlsFile,
@@ -24,7 +23,7 @@ const getUrlsFromSource = async (
     console.log(`______ Reading urls from file: ${urlsFile}________`);
     urlDataSource = `urls taken from file ${urlsFile}`;
     urls = await fsPromises
-      .readFile(`./LocalTesting/SelectedUrlsForSites/${urlsFile}`, "utf-8")
+      .readFile(`./SavedData/SelectedUrlsForSites/${urlsFile}`, "utf-8")
       .then((data) =>
         data
           .split(",")
@@ -49,7 +48,7 @@ const checkForSavedUrlData = (url, siteConfig) => {
   const md5Url = md5(url);
   const msg = "Saved data found !!!!";
   console.log("Checking for saved data");
-  const md5fileName = `./LocalTesting/SavedScrapperData/${siteConfig.siteName}/${md5Url}.json`;
+  const md5fileName = `./SavedData/SavedScrapperData/${siteConfig.siteName}/${md5Url}.json`;
   let result = false;
   let savedData = null;
   if (fs.existsSync(md5fileName)) {
@@ -62,6 +61,7 @@ const checkForSavedUrlData = (url, siteConfig) => {
     savedData,
   };
 };
+
 const getPageData = async (url, usePuppeteer, index) => {
   const idx = index === "" ? "" : `${++index})`;
   if (usePuppeteer) {
@@ -91,9 +91,6 @@ const getPageDataWithAxios = async (url) => {
       return res.data;
     })
     .catch((error) => {
-      fs.writeFile("./LocalTesting/errorLog.txt", error.message, (err) => {
-        if (err) console.log(`the err in writing to the log file is ${err}`);
-      });
       console.log(`the err while fetching html for ${url} is =>`, error);
     });
   return html;
@@ -274,7 +271,7 @@ const crawlSiteMapXmlv2 = async (siteDomain, siteMapPaths) => {
 
 const saveSiteData = (url, siteName, dataToSave) => {
   const md5FileNameHash = md5(url);
-  const dirNameToSaveData = `./LocalTesting/SavedScrapperData/${siteName}/`;
+  const dirNameToSaveData = `./SavedData/SavedScrapperData/${siteName}/`;
   const fileName = `${dirNameToSaveData}${md5FileNameHash}.json`;
   exportToJsonFile(dataToSave, fileName);
 };
@@ -299,17 +296,33 @@ async function exists(path) {
 }
 
 const getDataFromRssFeed = async (url) => {
-  let feed = await parser.parseURL(url);
-  const urls = feed.items.map((item) => item.link);
-  fs.writeFile("rssData.json", JSON.stringify(feed, null, 1), (err) => {
-    if (err) console.log(err);
-  });
-  return urls;
+  try {
+    let feed = await parser.parseURL(url);
+    console.log("Fetched data from rss feed!!");
+    let pubDate = moment(feed.items[0].isoDate);
+    if (lastUpdated !== "") {
+      lastUpdated = moment(lastUpdated);
+      if (pubDate.isSameOrBefore(lastUpdated)) return null;
+    }
+
+    const urls = feed.items.map((item) => item.link);
+    const data = { lastUpdated: pubDate.format() };
+    fs.writeFile(
+      "./SavedData/savedRssData.json",
+      JSON.stringify(data, null, 1),
+      (err) => {
+        if (err) console.log(err);
+      }
+    );
+    return await filterNewUrls(urls);
+  } catch (err) {
+    throw new Error(err);
+  }
 };
 
 const filterNewUrls = async (urls) => {
   const newUrls = [];
-  const savedDataPath = "./LocalTesting/SavedScrapperData/gadgets360/";
+  const savedDataPath = "./SavedData/SavedScrapperData/gadgets360/";
   for (let i = 0; i < urls.length; i++) {
     let url = urls[i];
     const filePath = `${savedDataPath}${md5(url)}.json`;
@@ -363,6 +376,7 @@ const createSegmentDataAndUpload = async (data, entityMap, categorymap) => {
     };
     uploadJson.segmentMap = obj.filteredEntities.map((name) => entityMap[name]);
     uploadJson.segmentMap.push(categorymap[obj.category]);
+    console.log(`Uploading segments for ${obj.url} to couchbase`);
     bucketConn.createDoc(docId, uploadJson, {});
   });
 };
