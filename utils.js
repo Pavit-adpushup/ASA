@@ -392,7 +392,6 @@ module.exports = {
   getUrlsFromSource,
   checkForSavedUrlData,
   getDataFromRssFeed,
-  filterNewUrls,
   getSegmentMappings,
   createSegmentDataAndUpload,
 };

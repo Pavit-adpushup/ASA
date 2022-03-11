@@ -1,10 +1,7 @@
 const args = require("minimist")(process.argv.slice(2));
 const { requestPool } = require("./lib/pool.js");
 const cheerio = require("cheerio");
-
-// Imports the Google Cloud client library
 const language = require("@google-cloud/language");
-// Instantiates a client
 const client = new language.LanguageServiceClient();
 
 const skippedUrls = [];
@@ -25,7 +22,6 @@ const {
   preBatchForRequestPool,
   getPageDataWithAxios,
   saveSiteData,
-  filterNewUrls,
   checkForSavedUrlData,
   getSegmentMappings,
   createSegmentDataAndUpload,
@@ -55,14 +51,12 @@ const fetchParaDataFromHTML = (html) => {
   let textContent = "";
   const contentSelector1 = ".content_text";
   const contentSelector2 = "#allplist";
-  // const contentSelector = "#ins_storybody";
   const paragraphs = $(
     `${contentSelector1} p, ${contentSelector2} p, .brant_content, h1`
   );
   paragraphs.each((_, el) => {
     let text = $(el).text().trim();
     const ignoreElement = $(el).hasClass("downloadtxt");
-    // const ignoreElement = $(el).hasClass("highlghts_Wdgt");
     if (text.length !== 0 && !ignoreElement) textContent += `${text} `;
   });
   const regExp = new RegExp("\\\n", "g");
