@@ -130,7 +130,7 @@ const createMetricsFromData = (data) => {
 };
 
 const logSkippedUrls = (urls) => {
-  const skippedUrlsStr = JSON.stringify(urls, null, 1);
+  const skippedUrlsStr = JSON.stringify(urls, null, 3);
   fs.writeFile(
     "../GeneratedData/NDTVskippedURLS.json",
     skippedUrlsStr,

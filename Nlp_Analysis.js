@@ -78,8 +78,8 @@ const classifyText = async (document) => {
 async function EntityAnalysis(url) {
   try {
     console.log("the urls is", url);
-    const { result, savedData } = checkForSavedUrlData(url, siteConfig);
-    if (result) {
+    const savedData = checkForSavedUrlData(url, siteConfig);
+    if (savedData) {
       urlNlpAnalysis[url] = {
         urlCategories: savedData.urlCategories,
         NlpEntityAnalysis: filterEntities(savedData.NlpEntityAnalysis),
@@ -148,17 +148,16 @@ const start = async () => {
 
 const rssFeedNlpAnalysis = async (url) => {
   try {
-    const urls = await getDataFromRssFeed(url);
+    const urls = await getDataFromRssFeed(siteConfig.siteName, url);
     if (!urls || !urls.length) {
       console.log("Feed not updated!!");
       return;
     }
-    const {
-      segmentEntityMapping: entityMap,
-      segmentCatergoryMapping: categoryMap,
-    } = await getSegmentMappings();
-
-    await scrapeUrlsInBatches(newUrls);
+    const result = await getSegmentMappings();
+    if(!result) return;
+    const entityMap = result.segmentEntityMapping;
+    const categoryMap = result.segmentCategoryMapping;
+    await scrapeUrlsInBatches(urls);
     const nlpData = filterNlpData(urlNlpAnalysis, siteConfig.entitiesToKeep);
     createSegmentDataAndUpload(nlpData, entityMap, categoryMap);
   } catch (err) {
@@ -171,6 +170,5 @@ const rssFeedNlpAnalysis = async (url) => {
 })();
 
 module.exports = {
-  start,
   rssFeedNlpAnalysis,
 };
