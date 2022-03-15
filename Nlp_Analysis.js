@@ -148,13 +148,13 @@ const start = async () => {
 
 const rssFeedNlpAnalysis = async (url) => {
   try {
-    const urls = await getDataFromRssFeed(siteConfig.siteName, url);
+    let urls = await getDataFromRssFeed(siteConfig.siteName, url);
     if (!urls || !urls.length) {
       console.log("Feed not updated!!");
       return;
     }
     const result = await getSegmentMappings();
-    if(!result) return;
+    if (!result) return;
     const entityMap = result.segmentEntityMapping;
     const categoryMap = result.segmentCategoryMapping;
     await scrapeUrlsInBatches(urls);

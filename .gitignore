@@ -5,3 +5,4 @@ package.json
 .DS_Store
 node_modules
 SavedData
+.vscode
