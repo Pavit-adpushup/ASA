@@ -165,9 +165,9 @@ const rssFeedNlpAnalysis = async (url) => {
   }
 };
 
-(()=>{
+(() => {
   rssFeedNlpAnalysis(siteConfig.rssFeedUrl);
-})()
+})();
 module.exports = {
   rssFeedNlpAnalysis,
 };
