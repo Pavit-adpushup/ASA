@@ -8,7 +8,7 @@ const Parser = require("rss-parser");
 const parser = new Parser();
 const sql = require("mssql");
 const crypto = require("crypto");
-const { sqlDbConfig } = require("./config");
+const { sqlDbConfig, scrapperConfig } = require("./config");
 const couchbase = require("./helpers/couchbase");
 let { lastUpdated } = require("./SavedData/savedRssData.json");
 
@@ -48,7 +48,7 @@ const checkForSavedUrlData = (url, siteConfig) => {
   console.log("Checking for saved data");
   let savedData = null;
   const md5Url = md5(url);
-  const md5filePath = `./SavedData/SavedScrapperData/${siteConfig.siteName}/${md5Url}.json`;
+  const md5filePath = `${scrapperConfig.savedDataPath}/${siteConfig.siteName}/${md5Url}.json`;
   if (fs.existsSync(md5filePath)) {
     console.log(`"Saved data found !!!!"`);
     const rawData = fs.readFileSync(md5filePath);
@@ -266,7 +266,7 @@ const crawlSiteMapXmlv2 = async (siteDomain, siteMapPaths) => {
 
 const saveSiteData = (url, siteName, dataToSave) => {
   const md5FileNameHash = md5(url);
-  const dirNameToSaveData = `./SavedData/SavedScrapperData/${siteName}/`;
+  const dirNameToSaveData = `${scrapperConfig.savedDataPath}/${siteName}/`;
   const filePath = `${dirNameToSaveData}${md5FileNameHash}.json`;
   exportToJsonFile(dataToSave, filePath);
 };
@@ -317,7 +317,7 @@ const getDataFromRssFeed = async (siteName, url) => {
 
 const filterNewUrls = async (siteName, urls) => {
   const newUrls = [];
-  const savedDataPath = `./SavedData/SavedScrapperData/${siteName}/`;
+  const savedDataPath = `${scrapperConfig.savedDataPath}/${siteName}/`;
   for (let i = 0; i < urls.length; i++) {
     let url = urls[i];
     const filePath = `${savedDataPath}${md5(url)}.json`;

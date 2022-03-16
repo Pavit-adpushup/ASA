@@ -594,6 +594,14 @@ const siteConfig = {
     "Visa",
   ],
 };
+const scrapperConfig = {
+  savedDataPath: './SavedData/SavedScrapperData',
+  requestPool: {
+    preBatchSize: 100,
+    requestPoolBatchSize: 20,
+    requestPoolDelay: 4000,
+  }
+}
 
 const sqlDbConfig = {
   user: process.env.SQL_USER,
@@ -613,4 +621,5 @@ module.exports = {
   siteConfig,
   sqlDbConfig,
   couchbaseConfig,
+  scrapperConfig,
 };

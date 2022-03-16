@@ -6,7 +6,7 @@ const client = new language.LanguageServiceClient();
 
 const skippedUrls = [];
 const urlNlpAnalysis = {};
-const { siteConfig } = require("./config");
+const { siteConfig, scrapperConfig } = require("./config");
 
 const {
   generateCsvFromNlpData,
@@ -30,14 +30,15 @@ const {
 const scrapeUrlsInBatches = async (urls) => {
   console.log("scraping urls in batches");
   try {
-    const batchedUrls = preBatchForRequestPool(urls, 100);
+    const rpConfig = scrapperConfig.requestPool;
+    const batchedUrls = preBatchForRequestPool(urls, rpConfig.preBatchSize);
     for (let i = 0; i < batchedUrls.length; i++) {
       console.log(`${i + 1} Batch processing....`);
       const batch = batchedUrls[i];
       await requestPool({
         queue: batch,
-        batchSize: 20,
-        delay: 4000,
+        batchSize: rpConfig.requestPoolBatchSize,
+        delay: rpConfig.requestPoolDelay,
         fn: (url) => EntityAnalysis(url),
       });
     }
