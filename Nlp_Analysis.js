@@ -5,6 +5,7 @@ const language = require("@google-cloud/language");
 const client = new language.LanguageServiceClient();
 
 const skippedUrls = [];
+// why this is global
 const urlNlpAnalysis = {};
 const { siteConfig, scrapperConfig } = require("./config");
 
@@ -60,6 +61,8 @@ const fetchParaDataFromHTML = (html) => {
     const ignoreElement = $(el).hasClass("downloadtxt");
     if (text.length !== 0 && !ignoreElement) textContent += `${text} `;
   });
+
+  // short cut - return textContent.replace(/\n/g, "");
   const regExp = new RegExp("\\\n", "g");
   return textContent.replace(regExp, "");
 };
@@ -79,6 +82,7 @@ const classifyText = async (document) => {
 async function EntityAnalysis(url) {
   try {
     console.log("the urls is", url);
+    // getSavedUrlData
     const savedData = checkForSavedUrlData(url, siteConfig);
     if (savedData) {
       urlNlpAnalysis[url] = {
@@ -88,6 +92,7 @@ async function EntityAnalysis(url) {
     } else {
       const html = await getPageDataWithAxios(url);
       const text = fetchParaDataFromHTML(html);
+      // if (!text) is enough
       if (text === "" || text === undefined) {
         skippedUrls.push(url);
         console.log("the text is empty for url:", url);
@@ -113,6 +118,7 @@ async function EntityAnalysis(url) {
         }
         NlpEntityAnalysis.push(data);
       });
+      // this can be handled in pool clalback
       urlNlpAnalysis[url] = {
         urlCategories: classification.categories,
         NlpEntityAnalysis,
@@ -149,11 +155,15 @@ const start = async () => {
 
 const rssFeedNlpAnalysis = async (url) => {
   try {
+    // filtered URLs - new URLs that are not processed yet
     let urls = await getDataFromRssFeed(siteConfig.siteName, url);
+    // if no new URL found return
     if (!urls || !urls.length) {
       console.log("Feed not updated!!");
       return;
     }
+
+    // 
     const result = await getSegmentMappings();
     if (!result) return;
     const entityMap = result.segmentEntityMapping;

@@ -322,6 +322,7 @@ const filterNewUrls = async (siteName, urls) => {
     let url = urls[i];
     const filePath = `${savedDataPath}${md5(url)}.json`;
     const result = await exists(filePath);
+    // if not already scrapped then push it to newUrls list
     if (!result) newUrls.push(url);
   }
   return newUrls;
@@ -344,10 +345,13 @@ const getAudienceSegmentData = async () => {
 
 const getSegmentMappings = async () => {
   try {
+    // get segmentData from sql
     let data = await getAudienceSegmentData();
     if (!data) throw new Error("unable to fetch Audience segmentation data!!");
+
     const segmentEntityMapping = {};
     const segmentCategoryMapping = {};
+    // TBD: Get data sample of this data
     data.forEach((obj) => {
       if (obj.name.includes("FPA_Gadgets_Entity_")) {
         const entityName = obj.name.replace("FPA_Gadgets_Entity_", "");
@@ -371,6 +375,7 @@ const createSegmentDataAndUpload = async (data, entityMap, categorymap) => {
   try {
     const bucketConn = couchbase.getConnection();
     data.forEach((obj) => {
+      // get url from config
       const urlPath = obj.url.replace("https://gadgets360.com", "");
       const SHA1UrlPath = generateSHA256Hash(urlPath);
       const docId = `urlmap::${SHA1UrlPath}`;

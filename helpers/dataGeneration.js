@@ -14,6 +14,10 @@ const filterNlpData = (data, entitiesToKeep) => {
     const categoryRegex = url.includes(".com/compare") ? compareRegex : regex;
     const categoryFromUrl = url.match(categoryRegex)[1];
 
+    // can be shorten to
+    // const categoryRegex = url.includes(".com/compare") ? /.com\/?(\w+)/ : /.com\/?(\w+(-\w+)?)/;
+    // const categoryFromUrl = url.match(categoryRegex)[1]
+
     //filter out entities
     const entitiesStr = nlpData.NlpEntityAnalysis.map((obj) => obj.name).join(
       " | "
