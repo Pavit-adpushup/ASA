@@ -30,6 +30,7 @@ const connect = (host, bucket, username, userPassword) => {
       resolve(connectedBuckets[bucket]);
     });
   };
+  
 
   const queryDB = async (query) => {
     return connect()
