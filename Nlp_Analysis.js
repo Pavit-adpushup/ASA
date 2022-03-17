@@ -22,7 +22,7 @@ const {
   preBatchForRequestPool,
   getPageDataWithAxios,
   saveSiteData,
-  checkForSavedUrlData,
+  getSavedUrlData,
   getSegmentMappings,
   createSegmentDataAndUpload,
 } = require("./utils");
@@ -60,8 +60,8 @@ const fetchParaDataFromHTML = (html) => {
     const ignoreElement = $(el).hasClass("downloadtxt");
     if (text.length !== 0 && !ignoreElement) textContent += `${text} `;
   });
-  const regExp = new RegExp("\\\n", "g");
-  return textContent.replace(regExp, "");
+  console.log(textContent.replace(/\\n/g, ""));
+  return textContent.replace(/\\n/g, "");
 };
 
 const filterEntities = (entitiesArr) =>
@@ -79,7 +79,7 @@ const classifyText = async (document) => {
 async function EntityAnalysis(url) {
   try {
     console.log("the urls is", url);
-    const savedData = checkForSavedUrlData(url, siteConfig);
+    const savedData = getSavedUrlData(url, siteConfig);
     if (savedData) {
       urlNlpAnalysis[url] = {
         urlCategories: savedData.urlCategories,
@@ -88,7 +88,7 @@ async function EntityAnalysis(url) {
     } else {
       const html = await getPageDataWithAxios(url);
       const text = fetchParaDataFromHTML(html);
-      if (text === "" || text === undefined) {
+      if (!text) {
         skippedUrls.push(url);
         console.log("the text is empty for url:", url);
         return;
@@ -154,6 +154,11 @@ const rssFeedNlpAnalysis = async (url) => {
       console.log("Feed not updated!!");
       return;
     }
+    urls = [
+      "https://gadgets360.com/entertainment/news/netflix-password-share-pay-extra-accounts-test-ott-original-web-series-movies-2827878#rss-gadgets-all",
+      "https://gadgets360.com/cryptocurrency/news/bitcoin-ether-binance-coin-solana-cardano-avalanche-price-increase-market-ukraine-crypto-legal-bill-2827826#rss-gadgets-all",
+      "https://gadgets360.com/mobiles/reviews/f23-5g-price-in-india-launch-samsung-galaxy-vs-realme-9-redmi-note-11-pro-2826053#rss-gadgets-all",
+    ];
     const result = await getSegmentMappings();
     if (!result) return;
     const entityMap = result.segmentEntityMapping;

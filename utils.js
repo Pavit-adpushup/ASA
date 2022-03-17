@@ -8,7 +8,7 @@ const Parser = require("rss-parser");
 const parser = new Parser();
 const sql = require("mssql");
 const crypto = require("crypto");
-const { sqlDbConfig, scrapperConfig } = require("./config");
+const { siteConfig, sqlDbConfig, scrapperConfig } = require("./config");
 const couchbase = require("./helpers/couchbase");
 let { lastUpdated } = require("./SavedData/savedRssData.json");
 
@@ -44,7 +44,7 @@ const getUrlsFromSource = async (
   return { urls, urlDataSource };
 };
 
-const checkForSavedUrlData = (url, siteConfig) => {
+const getSavedUrlData = (url, siteConfig) => {
   console.log("Checking for saved data");
   let savedData = null;
   const md5Url = md5(url);
@@ -371,7 +371,7 @@ const createSegmentDataAndUpload = async (data, entityMap, categorymap) => {
   try {
     const bucketConn = couchbase.getConnection();
     data.forEach((obj) => {
-      const urlPath = obj.url.replace("https://gadgets360.com", "");
+      const urlPath = obj.url.replace(siteConfig.siteDomain, "");
       const SHA1UrlPath = generateSHA256Hash(urlPath);
       const docId = `urlmap::${SHA1UrlPath}`;
       const uploadJson = {
@@ -398,7 +398,7 @@ module.exports = {
   getPageData,
   preBatchForRequestPool,
   getUrlsFromSource,
-  checkForSavedUrlData,
+  getSavedUrlData,
   getDataFromRssFeed,
   getSegmentMappings,
   createSegmentDataAndUpload,

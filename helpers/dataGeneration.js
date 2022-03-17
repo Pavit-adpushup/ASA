@@ -9,9 +9,7 @@ const filterNlpData = (data, entitiesToKeep) => {
     const nlpData = data[url];
 	
     //extracting category from url
-    const regex = new RegExp(".com//?(\\w+)");
-    const compareRegex = new RegExp(".com//?(\\w+(-\\w+)?)");
-    const categoryRegex = url.includes(".com/compare") ? compareRegex : regex;
+    const categoryRegex = url.includes(".com/compare") ? /.com\/?(\w+)/ : /.com\/?(\w+(-\w+)?)/;
     const categoryFromUrl = url.match(categoryRegex)[1];
 
     //filter out entities
