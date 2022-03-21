@@ -8,7 +8,7 @@ const Parser = require("rss-parser");
 const parser = new Parser();
 const sql = require("mssql");
 const crypto = require("crypto");
-const { sqlDbConfig } = require("./config");
+const { siteConfig, sqlDbConfig, scrapperConfig } = require("./config");
 const couchbase = require("./helpers/couchbase");
 let { lastUpdated } = require("./SavedData/savedRssData.json");
 
@@ -44,22 +44,17 @@ const getUrlsFromSource = async (
   return { urls, urlDataSource };
 };
 
-const checkForSavedUrlData = (url, siteConfig) => {
-  const md5Url = md5(url);
-  const msg = "Saved data found !!!!";
+const getSavedUrlData = (url, siteConfig) => {
   console.log("Checking for saved data");
-  const md5fileName = `./SavedData/SavedScrapperData/${siteConfig.siteName}/${md5Url}.json`;
-  let result = false;
   let savedData = null;
-  if (fs.existsSync(md5fileName)) {
-    console.log(`${msg}`);
-    savedData = require(md5fileName);
-    result = true;
+  const md5Url = md5(url);
+  const md5filePath = `${scrapperConfig.savedDataPath}/${siteConfig.siteName}/${md5Url}.json`;
+  if (fs.existsSync(md5filePath)) {
+    console.log(`"Saved data found !!!!"`);
+    const rawData = fs.readFileSync(md5filePath);
+    savedData = JSON.parse(rawData);
   }
-  return {
-    result,
-    savedData,
-  };
+  return savedData;
 };
 
 const getPageData = async (url, usePuppeteer, index) => {
@@ -271,13 +266,13 @@ const crawlSiteMapXmlv2 = async (siteDomain, siteMapPaths) => {
 
 const saveSiteData = (url, siteName, dataToSave) => {
   const md5FileNameHash = md5(url);
-  const dirNameToSaveData = `./SavedData/SavedScrapperData/${siteName}/`;
-  const fileName = `${dirNameToSaveData}${md5FileNameHash}.json`;
-  exportToJsonFile(dataToSave, fileName);
+  const dirNameToSaveData = `${scrapperConfig.savedDataPath}/${siteName}/`;
+  const filePath = `${dirNameToSaveData}${md5FileNameHash}.json`;
+  exportToJsonFile(dataToSave, filePath);
 };
 
 const exportToJsonFile = (jsonObj, filePath) => {
-  const jsonString = JSON.stringify(jsonObj, null, 1);
+  const jsonString = JSON.stringify(jsonObj, null, 3);
   fs.writeFile(`${filePath}`, jsonString, (err) => {
     if (err) console.log(`the err in export function is ${err}`);
   });
@@ -295,7 +290,7 @@ async function exists(path) {
   }
 }
 
-const getDataFromRssFeed = async (url) => {
+const getDataFromRssFeed = async (siteName, url) => {
   try {
     let feed = await parser.parseURL(url);
     console.log("Fetched data from rss feed!!");
@@ -314,15 +309,15 @@ const getDataFromRssFeed = async (url) => {
         if (err) console.log(err);
       }
     );
-    return await filterNewUrls(urls);
+    return await filterNewUrls(siteName, urls);
   } catch (err) {
     throw new Error(err);
   }
 };
 
-const filterNewUrls = async (urls) => {
+const filterNewUrls = async (siteName, urls) => {
   const newUrls = [];
-  const savedDataPath = "./SavedData/SavedScrapperData/gadgets360/";
+  const savedDataPath = `${scrapperConfig.savedDataPath}/${siteName}/`;
   for (let i = 0; i < urls.length; i++) {
     let url = urls[i];
     const filePath = `${savedDataPath}${md5(url)}.json`;
@@ -343,42 +338,55 @@ const getAudienceSegmentData = async () => {
     return result1.recordset;
   } catch (err) {
     console.log("error in sql service: ", err);
+    return null;
   }
 };
 
 const getSegmentMappings = async () => {
-  let data = await getAudienceSegmentData();
-  const segmentEntityMapping = {};
-  const segmentCatergoryMapping = {};
-  data.forEach((obj) => {
-    if (obj.name.includes("FPA_Gadgets_Entity_")) {
-      const entityName = obj.name.replace("FPA_Gadgets_Entity_", "");
-      segmentEntityMapping[entityName] = obj.id;
-    } else {
-      const categoryName = obj.name.replace("FPA_Gadgets_Category_", "");
-      segmentCatergoryMapping[categoryName] = obj.id;
-    }
-  });
-  return { segmentEntityMapping, segmentCatergoryMapping };
+  try {
+    let data = await getAudienceSegmentData();
+    if (!data) throw new Error("unable to fetch Audience segmentation data!!");
+    const segmentEntityMapping = {};
+    const segmentCategoryMapping = {};
+    data.forEach((obj) => {
+      if (obj.name.includes("FPA_Gadgets_Entity_")) {
+        const entityName = obj.name.replace("FPA_Gadgets_Entity_", "");
+        segmentEntityMapping[entityName] = obj.id;
+      } else {
+        const categoryName = obj.name.replace("FPA_Gadgets_Category_", "");
+        segmentCategoryMapping[categoryName] = obj.id;
+      }
+    });
+    return { segmentEntityMapping, segmentCategoryMapping };
+  } catch (err) {
+    console.log(err);
+    return null;
+  }
 };
 
 const generateSHA256Hash = (str) =>
   crypto.createHash("sha256").update(str, "utf-8").digest("hex");
 
 const createSegmentDataAndUpload = async (data, entityMap, categorymap) => {
-  const bucketConn = couchbase.getConnection();
-  data.forEach((obj) => {
-    const urlPath = obj.url.replace("https://gadgets360.com", "");
-    const SHA1UrlPath = generateSHA256Hash(urlPath);
-    const docId = `urlmap::${SHA1UrlPath}`;
-    const uploadJson = {
-      dateCreated: +new Date(),
-    };
-    uploadJson.segmentMap = obj.filteredEntities.map((name) => entityMap[name]);
-    uploadJson.segmentMap.push(categorymap[obj.category]);
-    console.log(`Uploading segments for ${obj.url} to couchbase`);
-    bucketConn.createDoc(docId, uploadJson, {});
-  });
+  try {
+    const bucketConn = couchbase.getConnection();
+    data.forEach((obj) => {
+      const urlPath = obj.url.replace(siteConfig.siteDomain, "");
+      const SHA1UrlPath = generateSHA256Hash(urlPath);
+      const docId = `urlmap::${SHA1UrlPath}`;
+      const uploadJson = {
+        dateCreated: +new Date(),
+      };
+      uploadJson.segmentMap = obj.filteredEntities.map(
+        (name) => entityMap[name]
+      );
+      uploadJson.segmentMap.push(categorymap[obj.category]);
+      console.log(`Uploading segments for ${obj.url} to couchbase`);
+      bucketConn.createDoc(docId, uploadJson, {});
+    });
+  } catch (err) {
+    console.log(`Couchbase Error: ${err}`);
+  }
 };
 
 module.exports = {
@@ -390,7 +398,7 @@ module.exports = {
   getPageData,
   preBatchForRequestPool,
   getUrlsFromSource,
-  checkForSavedUrlData,
+  getSavedUrlData,
   getDataFromRssFeed,
   getSegmentMappings,
   createSegmentDataAndUpload,

@@ -9,9 +9,7 @@ const filterNlpData = (data, entitiesToKeep) => {
     const nlpData = data[url];
 	
     //extracting category from url
-    const regex = new RegExp(".com//?(\\w+)");
-    const compareRegex = new RegExp(".com//?(\\w+(-\\w+)?)");
-    const categoryRegex = url.includes(".com/compare") ? compareRegex : regex;
+    const categoryRegex = url.includes(".com/compare") ? /.com\/?(\w+)/ : /.com\/?(\w+(-\w+)?)/;
     const categoryFromUrl = url.match(categoryRegex)[1];
 
     //filter out entities
@@ -130,7 +128,7 @@ const createMetricsFromData = (data) => {
 };
 
 const logSkippedUrls = (urls) => {
-  const skippedUrlsStr = JSON.stringify(urls, null, 1);
+  const skippedUrlsStr = JSON.stringify(urls, null, 3);
   fs.writeFile(
     "../GeneratedData/NDTVskippedURLS.json",
     skippedUrlsStr,

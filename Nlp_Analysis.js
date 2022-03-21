@@ -6,7 +6,7 @@ const client = new language.LanguageServiceClient();
 
 const skippedUrls = [];
 const urlNlpAnalysis = {};
-const { siteConfig } = require("./config");
+const { siteConfig, scrapperConfig } = require("./config");
 
 const {
   generateCsvFromNlpData,
@@ -22,7 +22,7 @@ const {
   preBatchForRequestPool,
   getPageDataWithAxios,
   saveSiteData,
-  checkForSavedUrlData,
+  getSavedUrlData,
   getSegmentMappings,
   createSegmentDataAndUpload,
 } = require("./utils");
@@ -30,14 +30,15 @@ const {
 const scrapeUrlsInBatches = async (urls) => {
   console.log("scraping urls in batches");
   try {
-    const batchedUrls = preBatchForRequestPool(urls, 100);
+    const rpConfig = scrapperConfig.requestPool;
+    const batchedUrls = preBatchForRequestPool(urls, rpConfig.preBatchSize);
     for (let i = 0; i < batchedUrls.length; i++) {
       console.log(`${i + 1} Batch processing....`);
       const batch = batchedUrls[i];
       await requestPool({
         queue: batch,
-        batchSize: 20,
-        delay: 4000,
+        batchSize: rpConfig.requestPoolBatchSize,
+        delay: rpConfig.requestPoolDelay,
         fn: (url) => EntityAnalysis(url),
       });
     }
@@ -59,8 +60,7 @@ const fetchParaDataFromHTML = (html) => {
     const ignoreElement = $(el).hasClass("downloadtxt");
     if (text.length !== 0 && !ignoreElement) textContent += `${text} `;
   });
-  const regExp = new RegExp("\\\n", "g");
-  return textContent.replace(regExp, "");
+  return textContent.replace(/\\n/g, "");
 };
 
 const filterEntities = (entitiesArr) =>
@@ -78,8 +78,8 @@ const classifyText = async (document) => {
 async function EntityAnalysis(url) {
   try {
     console.log("the urls is", url);
-    const { result, savedData } = checkForSavedUrlData(url, siteConfig);
-    if (result) {
+    const savedData = getSavedUrlData(url, siteConfig);
+    if (savedData) {
       urlNlpAnalysis[url] = {
         urlCategories: savedData.urlCategories,
         NlpEntityAnalysis: filterEntities(savedData.NlpEntityAnalysis),
@@ -87,7 +87,7 @@ async function EntityAnalysis(url) {
     } else {
       const html = await getPageDataWithAxios(url);
       const text = fetchParaDataFromHTML(html);
-      if (text === "" || text === undefined) {
+      if (!text) {
         skippedUrls.push(url);
         console.log("the text is empty for url:", url);
         return;
@@ -148,17 +148,16 @@ const start = async () => {
 
 const rssFeedNlpAnalysis = async (url) => {
   try {
-    const urls = await getDataFromRssFeed(url);
+    let urls = await getDataFromRssFeed(siteConfig.siteName, url);
     if (!urls || !urls.length) {
       console.log("Feed not updated!!");
       return;
     }
-    const {
-      segmentEntityMapping: entityMap,
-      segmentCatergoryMapping: categoryMap,
-    } = await getSegmentMappings();
-
-    await scrapeUrlsInBatches(newUrls);
+    const result = await getSegmentMappings();
+    if (!result) return;
+    const entityMap = result.segmentEntityMapping;
+    const categoryMap = result.segmentCategoryMapping;
+    await scrapeUrlsInBatches(urls);
     const nlpData = filterNlpData(urlNlpAnalysis, siteConfig.entitiesToKeep);
     createSegmentDataAndUpload(nlpData, entityMap, categoryMap);
   } catch (err) {
@@ -166,11 +165,9 @@ const rssFeedNlpAnalysis = async (url) => {
   }
 };
 
-(async () => {
+(() => {
   rssFeedNlpAnalysis(siteConfig.rssFeedUrl);
 })();
-
 module.exports = {
-  start,
   rssFeedNlpAnalysis,
 };
