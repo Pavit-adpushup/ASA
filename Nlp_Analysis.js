@@ -154,11 +154,6 @@ const rssFeedNlpAnalysis = async (url) => {
       console.log("Feed not updated!!");
       return;
     }
-    urls = [
-      "https://gadgets360.com/entertainment/news/netflix-password-share-pay-extra-accounts-test-ott-original-web-series-movies-2827878#rss-gadgets-all",
-      "https://gadgets360.com/cryptocurrency/news/bitcoin-ether-binance-coin-solana-cardano-avalanche-price-increase-market-ukraine-crypto-legal-bill-2827826#rss-gadgets-all",
-      "https://gadgets360.com/mobiles/reviews/f23-5g-price-in-india-launch-samsung-galaxy-vs-realme-9-redmi-note-11-pro-2826053#rss-gadgets-all",
-    ];
     const result = await getSegmentMappings();
     if (!result) return;
     const entityMap = result.segmentEntityMapping;
