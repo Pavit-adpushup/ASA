@@ -60,7 +60,6 @@ const fetchParaDataFromHTML = (html) => {
     const ignoreElement = $(el).hasClass("downloadtxt");
     if (text.length !== 0 && !ignoreElement) textContent += `${text} `;
   });
-  console.log(textContent.replace(/\\n/g, ""));
   return textContent.replace(/\\n/g, "");
 };
 
