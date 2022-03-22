@@ -596,6 +596,7 @@ const siteConfig = {
 };
 const scrapperConfig = {
   savedDataPath: './SavedData/SavedScrapperData',
+  savedRssDataPath: './SavedData/savedRssData.json',
   requestPool: {
     preBatchSize: 100,
     requestPoolBatchSize: 20,
