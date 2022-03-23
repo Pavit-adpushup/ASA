@@ -365,7 +365,7 @@ const getSegmentMappings = async () => {
 };
 
 const generateSHA256Hash = (str) =>
-  crypto.createHash("sha256").update(str, "utf-8").digest("hex");
+  crypto.createHash("sha256").update(str, "utf-8").digest("hex").toUpperCase();
 
 const createSegmentDataAndUpload = async (data, entityMap, categorymap) => {
   try {
