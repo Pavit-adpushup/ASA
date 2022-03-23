@@ -1,0 +1,33 @@
+{
+  "name": "entityextractionscrapper",
+  "version": "1.0.0",
+  "description": "",
+  "main": "Nlp_Analysis_Gadgets360.js",
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@google-cloud/language": "^4.3.2",
+    "axios": "^0.26.0",
+    "bluebird": "^3.7.2",
+    "cheerio": "^1.0.0-rc.10",
+    "couchbase": "^2.5.1",
+    "dotenv": "^16.0.0",
+    "fast-csv": "^4.3.6",
+    "fast-xml-parser": "^4.0.5",
+    "md5": "^2.3.0",
+    "minimist": "^1.2.5",
+    "moment": "^2.29.1",
+    "mssql": "^8.0.2",
+    "node-cron": "^3.0.0",
+    "pupeteer": "0.0.1",
+    "puppeteer": "^13.5.1",
+    "rss-parser": "^3.12.0",
+    "sitemap-xml-parser": "^0.0.2"
+  }
+}
