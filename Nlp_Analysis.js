@@ -154,6 +154,7 @@ const rssFeedNlpAnalysis = async (url) => {
       console.log("Feed not updated!!");
       return;
     }
+
     const result = await getSegmentMappings();
     if (!result) return;
     const entityMap = result.segmentEntityMapping;
