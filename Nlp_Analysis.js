@@ -154,12 +154,7 @@ const rssFeedNlpAnalysis = async (url) => {
       console.log("Feed not updated!!");
       return;
     }
-    urls = [
-      "https://gadgets360.com/internet/news/youtube-brazil-vote-fraud-video-remove-jair-bolsonaro-2018-election-margin-2837881",
-      "https://gadgets360.com/internet/news/youtube-brazil-vote-fraud-video-remove-jair-bolsonaro-2018-election-margin-2837881",
-      "https://gadgets360.com/cryptocurrency/news/cryptocurrency-bitcoin-ether-altcoin-price-today-gains-2837852",
-      "https://gadgets360.com/mobiles/news/xiaomi-12-ultra-launch-date-may-2022-leak-specifications-features-2837868",
-    ]
+
     const result = await getSegmentMappings();
     if (!result) return;
     const entityMap = result.segmentEntityMapping;
