@@ -300,7 +300,7 @@ const getDataFromRssFeed = async (siteName, url) => {
       if (pubDate.isSameOrBefore(lastUpdated)) return null;
     }
 
-    const urls = feed.items.map((item) => item.link);
+    const urls = feed.items.map((item) => item.link.replace('#rss-gadgets-all', ''));
     const data = { lastUpdated: pubDate.format() };
     fs.writeFile(
       "./SavedData/savedRssData.json",

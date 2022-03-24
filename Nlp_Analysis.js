@@ -72,7 +72,7 @@ const classifyText = async (document) => {
   //   const [classification] = await client.classifyText({ document });
   //   return classification;
   // } catch (err) {
-    // return { categories: [{ name: "No classification", confidence: 0 }] };
+  // return { categories: [{ name: "No classification", confidence: 0 }] };
   // }
 };
 
