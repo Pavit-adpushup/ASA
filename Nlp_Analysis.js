@@ -147,14 +147,13 @@ const start = async () => {
   console.timeEnd("The scrapper time");
 };
 
-const rssFeedNlpAnalysis = async (url) => {
+const rssFeedNlpAnalysis = async () => {
   try {
-    let urls = await getDataFromRssFeed(siteConfig.siteName, url);
+    let urls = await getDataFromRssFeed(siteConfig.siteName, siteConfig.rssFeedUrl);
     if (!urls || !urls.length) {
       console.log("Feed not updated!!");
       return;
     }
-
     const result = await getSegmentMappings();
     if (!result) return;
     const entityMap = result.segmentEntityMapping;
@@ -168,7 +167,7 @@ const rssFeedNlpAnalysis = async (url) => {
 };
 
 (() => {
-  rssFeedNlpAnalysis(siteConfig.rssFeedUrl);
+  rssFeedNlpAnalysis();
 })();
 module.exports = {
   rssFeedNlpAnalysis,

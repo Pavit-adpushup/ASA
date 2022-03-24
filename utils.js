@@ -309,7 +309,8 @@ const getDataFromRssFeed = async (siteName, url) => {
         if (err) console.log(err);
       }
     );
-    return await filterNewUrls(siteName, urls);
+    // return await filterNewUrls(siteName, urls);
+    return urls;
   } catch (err) {
     throw new Error(err);
   }
@@ -385,7 +386,7 @@ const createSegmentDataAndUpload = async (data, entityMap, categorymap) => {
       bucketConn.createDoc(docId, uploadJson, {});
     });
   } catch (err) {
-    console.log(`Couchbase Error: ${err}`);
+    console.log(`Couchbase Error for : ${err}`);
   }
 };
 
