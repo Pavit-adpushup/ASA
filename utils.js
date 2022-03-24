@@ -309,8 +309,7 @@ const getDataFromRssFeed = async (siteName, url) => {
         if (err) console.log(err);
       }
     );
-    // return await filterNewUrls(siteName, urls);
-    return urls;
+    return await filterNewUrls(siteName, urls);
   } catch (err) {
     throw new Error(err);
   }
