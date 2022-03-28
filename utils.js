@@ -385,7 +385,7 @@ const createSegmentDataAndUpload = async (data, entityMap, categorymap) => {
       bucketConn.createDoc(docId, uploadJson, {});
     });
   } catch (err) {
-    console.log(`Couchbase Error: ${err}`);
+    console.log(`Couchbase Error for : ${err}`);
   }
 };
 

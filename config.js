@@ -601,7 +601,8 @@ const scrapperConfig = {
     preBatchSize: 100,
     requestPoolBatchSize: 20,
     requestPoolDelay: 4000,
-  }
+  },
+  cronStr: '*/30 * * * *'
 }
 
 const sqlDbConfig = {
